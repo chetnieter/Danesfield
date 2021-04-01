@@ -10,6 +10,8 @@ import argparse
 import logging
 import numpy
 import pdal
+import vtk
+from vtk.util import numpy_support
 
 def main(args):
     parser = argparse.ArgumentParser(
@@ -41,56 +43,26 @@ def main(args):
     pipeline = None
 
     # read the mesh file
-    json = u"""
-    {
-      "pipeline": [
-        {
-            "type":"readers.obj",
-            "filename":"%s"
-        },
-        {
-          "type":"writers.ply",
-          "storage_mode":"little endian",
-          "filename":"{}"
-        }
-      ]
-    }"""
-    print("Loading Mesh")
-    json = json % args.source_mesh
-    pipeline = pdal.Pipeline(json)
-    pipeline.validate()  # check if our JSON and options were good
-    # this causes a segfault at the end of the program
-    # pipeline.loglevel = 8  # really noisy
-    pipeline.execute()
-    mesh = pipeline.arrays[0]
-    pipeline = None
+    print("Loading mesh")
+    obj_reader = vtk.vtkOBJReader()
+    obj_reader.SetFileName(args.source_mesh)
+    obj_reader.Update()
+    mesh = obj_reader.GetOutput()
+
+    points = numpy_support.vtk_to_numpy(mesh.GetPoints().GetData())
 
     # Shift the mesh
     # Hard-coding for now, make an input or parse from command line?
     utm_shift = [435516.726081, 3354093.8, -47.911346]
 
-    for m in mesh:
-      m[0] += utm_shift[0]
-      m[1] += utm_shift[1]
-      m[2] += utm_shift[2]
+    for p in points:
+      p += utm_shift
 
-    # Write out mesh
-    json = u"""
-    {
-      "pipeline": [
-        {
-          "type":"writers.ply",
-          "storage_mode":"little endian",
-          "filename":"%s"
-        }
-      ]
-    }"""
-    print("Writing Mesh")
-    json = json % args.destination_mesh
-    pipeline = pdal.Pipeline(json, [mesh])
-    pipeline.validate()  # check if our JSON and options were good
-    pipeline.execute()
-    pipeline = None
+    print("Writing new mesh")
+    obj_writer = vtk.vtkOBJWriter()
+    obj_writer.SetFileName(args.destination_mesh)
+    obj_writer.SetInputData(mesh)
+    obj_writer.Write()
 
 if __name__ == '__main__':
     import sys
