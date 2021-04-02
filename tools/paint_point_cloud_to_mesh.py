@@ -58,11 +58,26 @@ def main(args):
     for p in points:
       p += utm_shift
 
+    # Create a color array
+    colors = vtk.vtkUnsignedCharArray()
+    colors.SetName("Colors")
+    colors.SetNumberOfComponents(3)
+    colors.SetNumberOfTuples(len(points))
+    colors.FillComponent(0, 255)
+    colors.FillComponent(1, 0)
+    colors.FillComponent(2, 0)
+
+    # mesh.GetPointData().SetScalars(colors);
+
     print("Writing new mesh")
-    obj_writer = vtk.vtkOBJWriter()
-    obj_writer.SetFileName(args.destination_mesh)
-    obj_writer.SetInputData(mesh)
-    obj_writer.Write()
+    # obj_writer = vtk.vtkOBJWriter()
+    # obj_writer.SetFileName(args.destination_mesh)
+    # obj_writer.SetInputData(mesh)
+    # obj_writer.Write()
+    ply_writer = vtk.vtkPolyDataWriter()
+    ply_writer.SetFileName(args.destination_mesh)
+    ply_writer.SetInputData(mesh)
+    ply_writer.Write()
 
 if __name__ == '__main__':
     import sys
