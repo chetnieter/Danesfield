@@ -22,6 +22,31 @@ def main(args):
 
     args = parser.parse_args(args)
 
+    # Read input OBJ header
+    with open(args.source_mesh, "r") as in_f:
+        lines = in_f.readlines()
+    if len(lines) > 0:
+        i = 0
+        while i < len(lines) and len(lines[i]) > 0 and lines[i][0] == "#":
+            i += 1
+    else:
+        print("Warning: empty input file.")
+        sys.exit(0)
+    header = lines[:i]
+
+    # Set the shift values for the mesh from header data
+    utm_shift = np.zeros(3)
+    for l in header:
+      cols = l.split()
+      if '#x' in cols[0]:
+          utm_shift[0] = float(cols[2])
+      elif '#y' in cols[0]:
+          utm_shift[1] = float(cols[2])
+      elif '#z' in cols[0]:
+          utm_shift[2] = float(cols[2])
+
+    print(utm_shift)
+
     # read the mesh file
     print("Loading mesh")
     obj_reader = vtk.vtkOBJReader()
@@ -32,11 +57,8 @@ def main(args):
     vertices = numpy_support.vtk_to_numpy(mesh.GetPoints().GetData())
 
     # Shift the mesh
-    # Hard-coding for now, make an input or parse from command line?
-    utm_shift = [435516.726081, 3354093.8, -47.911346]
-
     for v in vertices:
-      v += utm_shift
+        v += utm_shift
 
     # Get the bounding box of the mesh
     mesh.ComputeBounds()
