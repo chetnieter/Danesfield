@@ -8,7 +8,7 @@
 
 import argparse
 import logging
-import numpy
+import numpy as np
 import pdal
 import vtk
 from vtk.util import numpy_support
@@ -22,26 +22,6 @@ def main(args):
 
     args = parser.parse_args(args)
 
-    # read the las point cloud file
-    json = u"""
-    {
-      "pipeline": [
-        {
-            "type":"readers.las",
-            "filename":"%s"
-        }
-      ]
-    }"""
-    print("Loading Point Cloud")
-    json = json % args.source_point_cloud
-    pipeline = pdal.Pipeline(json)
-    pipeline.validate()  # check if our JSON and options were good
-    # this causes a segfault at the end of the program
-    # pipeline.loglevel = 8  # really noisy
-    pipeline.execute()
-    points = pipeline.arrays[0]
-    pipeline = None
-
     # read the mesh file
     print("Loading mesh")
     obj_reader = vtk.vtkOBJReader()
@@ -49,35 +29,82 @@ def main(args):
     obj_reader.Update()
     mesh = obj_reader.GetOutput()
 
-    points = numpy_support.vtk_to_numpy(mesh.GetPoints().GetData())
+    vertices = numpy_support.vtk_to_numpy(mesh.GetPoints().GetData())
 
     # Shift the mesh
     # Hard-coding for now, make an input or parse from command line?
     utm_shift = [435516.726081, 3354093.8, -47.911346]
 
+    for v in vertices:
+      v += utm_shift
+
+    # Get the bounding box of the mesh
+    mesh.ComputeBounds()
+    bbox = mesh.GetBounds()
+
+    # read the las point cloud file, filtering on the mesh bounding box
+    pdal_input = u"""
+    [
+      "{}",
+      {{
+        "type":"filters.range",
+        "limits":"X[{}:{}], Y[{}:{}], Z[{}:{}]"
+      }}
+    ]"""
+    print("Loading Point Cloud")
+    pdal_input = pdal_input.format(args.source_point_cloud,
+                                   bbox[0], bbox[1],
+                                   bbox[2], bbox[3],
+                                   bbox[4], bbox[5])
+    pipeline = pdal.Pipeline(pdal_input)
+    pipeline.validate()  # check if our JSON and options were good
+    # this causes a segfault at the end of the program
+    # pipeline.loglevel = 8  # really noisy
+    pipeline.execute()
+    points = pipeline.arrays[0]
+    pipeline = None
+
+    # Array to store the vertex colors
+    vertex_colors = np.zeros( (len(vertices), 3) ,dtype=np.int32)
+    vertex_num_points = np.zeros( (len(vertices) ) )
+
+    # Loop over point cloud and assign color to closest vertex
     for p in points:
-      p += utm_shift
+      shortest_distance = np.finfo(np.float32).max
+      shortest_idx = 0
+
+      pt = np.array([p[0], p[1], p[2]])
+      sep_vect = vertices - pt
+      dist_vect = np.einsum('ij,ij->i', sep_vect, sep_vect)
+
+      shortest_idx = np.argmin(dist_vect)
+
+      vertex_colors[shortest_idx, :] = np.array([p[12], p[13], p[14]])
+      vertex_num_points[shortest_idx] += 1
+
+    for i in range(len(vertex_colors)):
+      if vertex_num_points[i] > 0:
+        vertex_colors[i] = vertex_colors[i]/vertex_num_points[i]
 
     # Create a color array
     colors = vtk.vtkUnsignedCharArray()
     colors.SetName("Colors")
     colors.SetNumberOfComponents(3)
-    colors.SetNumberOfTuples(len(points))
-    colors.FillComponent(0, 255)
-    colors.FillComponent(1, 0)
-    colors.FillComponent(2, 0)
+    colors.SetNumberOfTuples(len(vertices))
 
-    # mesh.GetPointData().SetScalars(colors);
+    for i in range(len(vertices)):
+      colors.SetComponent(i, 0, vertex_colors[i, 0])
+      colors.SetComponent(i, 1, vertex_colors[i, 1])
+      colors.SetComponent(i, 2, vertex_colors[i, 2])
+
+    mesh.GetPointData().SetScalars(colors);
 
     print("Writing new mesh")
-    # obj_writer = vtk.vtkOBJWriter()
-    # obj_writer.SetFileName(args.destination_mesh)
-    # obj_writer.SetInputData(mesh)
-    # obj_writer.Write()
-    ply_writer = vtk.vtkPolyDataWriter()
-    ply_writer.SetFileName(args.destination_mesh)
-    ply_writer.SetInputData(mesh)
-    ply_writer.Write()
+    mesh_writer = vtk.vtkPLYWriter()
+    mesh_writer.SetArrayName("Colors")
+    mesh_writer.SetFileName(args.destination_mesh)
+    mesh_writer.SetInputData(mesh)
+    mesh_writer.Write()
 
 if __name__ == '__main__':
     import sys
