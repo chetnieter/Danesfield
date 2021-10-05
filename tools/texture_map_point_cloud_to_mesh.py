@@ -47,6 +47,14 @@ def main(args):
 
     mesh_triangulate(new_mesh)
 
+    print('DIR: ', dir(new_mesh))
+
+    # get bounding box of mesh
+    for v in new_mesh.vertices():
+        print('VERT: ', v)
+
+    exit()
+
     uv_unwrap_mesh = UVUnwrapMesh.create('core')
     uv_unwrap_mesh.unwrap(new_mesh)
 
@@ -70,7 +78,7 @@ def main(args):
       pc_max[i] = np.max(points[:,i])
     pc_len = pc_max - pc_min
 
-    for pt in points[:5000]:
+    for pt in points[:10]:
         point.value = pt
         (idx, u, v) = mesh_closest_point(point, new_mesh, closest_point)
         tx_coord = new_mesh.texture_map(idx, u, v)

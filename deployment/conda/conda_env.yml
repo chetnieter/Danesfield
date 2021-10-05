@@ -54,7 +54,7 @@ dependencies:
 - pip:
   - ubelt
   - plyfile
-  - open3d-python
+  - open3d
 - torchvision
 - tqdm
 - matplotlib
