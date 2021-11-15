@@ -12,7 +12,8 @@ import numpy as np
 import struct
 
 def get_string(pos, data, length=32):
-  return data[pos:pos + length].decode('ascii').rstrip('\x00'), pos + length
+  return (data[pos:pos + length].decode('ascii').rstrip('\x00').strip(),
+          pos + length)
 
 def get_uint16(pos, data):
   return int.from_bytes(data[pos:pos + 2], 'little'), pos + 2
@@ -30,11 +31,11 @@ def get_double(pos, data):
   return struct.unpack('d', data[pos:pos + 8])[0], pos + 8
 
 def get_double_vec(pos, data):
-  retVal = np.zeros(3)
+  retVal = []
   retPos = pos
 
   for i in range(3):
-    retVal[i] = struct.unpack('d', data[retPos:retPos + 8])[0]
+    retVal.append(struct.unpack('d', data[retPos:retPos + 8])[0])
     retPos += 8
 
   return retVal, retPos
@@ -43,11 +44,11 @@ def get_float(pos, data):
   return struct.unpack('f', data[pos:pos + 4])[0], pos + 4
 
 def get_float_vec(pos, data):
-  retVal = np.zeros(3)
+  retVal = []
   retPos = pos
 
   for i in range(3):
-    retVal[i] = struct.unpack('f', data[retPos:retPos + 4])[0]
+    retVal.append(struct.unpack('f', data[retPos:retPos + 4])[0])
     retPos += 4
 
   return retVal, retPos
@@ -71,7 +72,7 @@ def get_cov_matrix(pos, data, dim=3):
     'f', data[retPos:retPos + 4])[0]
   retPos += 4
 
-  return retVal, retPos
+  return retVal.tolist(), retPos
 
 def load_GPM_Master(data):
   ppe_bytes = base64.b64decode(data)
