@@ -9,10 +9,17 @@
 import argparse
 import json
 import logging
+import numpy
 import os
 import pdal
 
 from danesfield.gpm import GPM
+
+class NumpyArrayEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, numpy.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 pdal_json = u"""
 [
@@ -76,7 +83,7 @@ def main(args):
 
     if gpm.metadata:
         with open(args.out_file, 'w') as f:
-            json.dump(gpm.metadata, f)
+            json.dump(gpm.metadata, f, cls=NumpyArrayEncoder)
 
 if __name__ == '__main__':
     import sys

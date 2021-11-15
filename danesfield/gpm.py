@@ -31,11 +31,11 @@ def get_double(pos, data):
     return struct.unpack('d', data[pos:pos + 8])[0], pos + 8
 
 def get_double_vec(pos, data):
-    retVal = []
+    retVal = np.zeros(3)
     retPos = pos
 
     for i in range(3):
-        retVal.append(struct.unpack('d', data[retPos:retPos + 8])[0])
+        retVal[i] = struct.unpack('d', data[retPos:retPos + 8])[0]
         retPos += 8
 
     return retVal, retPos
@@ -44,11 +44,11 @@ def get_float(pos, data):
     return struct.unpack('f', data[pos:pos + 4])[0], pos + 4
 
 def get_float_vec(pos, data):
-    retVal = []
+    retVal = np.zeros(3)
     retPos = pos
 
     for i in range(3):
-        retVal.append(struct.unpack('f', data[retPos:retPos + 4])[0])
+        retVal[i] = struct.unpack('f', data[retPos:retPos + 4])[0]
         retPos += 4
 
     return retVal, retPos
@@ -68,7 +68,7 @@ def get_cov_matrix(pos, data, dim=3):
     retVal[1,2] = retVal[2,1] = struct.unpack('f', data[retPos:retPos + 4])[0]
     retPos += 4
 
-    return retVal.tolist(), retPos
+    return retVal, retPos
 
 class GPM(object):
     def __init__(self, metadata):
