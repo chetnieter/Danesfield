@@ -12,7 +12,7 @@ import logging
 import os
 import pdal
 
-from danesfield import gpm
+from danesfield.gpm import GPM
 
 pdal_json = u"""
 [
@@ -72,27 +72,11 @@ def main(args):
       print('Unknown file extension')
       sys.exit(1)
 
-    rslt_json = {}
+    gpm = GPM(gpm_metadata)
 
-    if 'GPM_Master' in gpm_metadata:
-      rslt_json['GPM_Master'] = gpm.load_GPM_Master(
-        gpm_metadata['GPM_Master'])
-
-    if 'GPM_GndSpace_Direct' in gpm_metadata:
-      rslt_json['GPM_GndSpace_Direct'] = gpm.load_GPM_GndSpace_Direct(
-        gpm_metadata['GPM_GndSpace_Direct'])
-
-    if 'Per_Point_Lookup_Error_Data' in gpm_metadata:
-      rslt_json['Per_Point_Lookup_Error_Data'] = gpm.load_Per_Point_Lookup_Error_Data(
-        gpm_metadata['Per_Point_Lookup_Error_Data'])
-
-    if 'GPM_Unmodeled_Error_Data' in gpm_metadata:
-      rslt_json['GPM_Unmodeled_Error_Data'] = gpm.load_GPM_Unmodeled_Error_Data(
-        gpm_metadata['GPM_Unmodeled_Error_Data'])
-
-    if rslt_json:
+    if gpm.metadata:
         with open(args.out_file, 'w') as f:
-            json.dump(rslt_json, f)
+            json.dump(gpm.metadata, f)
 
 if __name__ == '__main__':
     import sys
