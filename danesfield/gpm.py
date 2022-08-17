@@ -269,7 +269,6 @@ class GPM(object):
             cov_matrix, currPos = gpm64.to_cov_matrix(currPos, ppe_bytes)
             ppe[i, :, :] = cov_matrix
 
-        print('WTF', ppe.shape, type(ppe))
         retDict['PPE_COV_RECORD'] = ppe
 
         self.checkBytesProcessed(currPos, ppe_bytes, 'Per_Point_Lookup_Error_Data')
