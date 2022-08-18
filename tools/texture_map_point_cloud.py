@@ -183,7 +183,7 @@ class pointCloudTextureMapper(object):
 
         self.texture_sample(img_arr, new_mesh, self.utm_shift(meshfile))
 
-        new_name = self.output_dir / (meshfile.stem + '_tex')
+        new_name = self.output_dir / meshfile.stem
 
         plt.imsave(new_name.with_suffix('.png'), img_arr)
 
@@ -200,7 +200,8 @@ def main(args):
     parser.add_argument("mesh_dir", help="path to directory holding the mesh files")
     parser.add_argument("point_cloud_file", help="path to point cloud file")
     parser.add_argument("--output_dir", help="directory to save the results. "
-                        "Defaults to mesh_dir")
+                        "Defaults to mesh_dir. If left to be the mesh_dir then "
+                        "the original mesh files will be overwritten.")
     args = parser.parse_args(args)
 
     # Load kwiver modules
