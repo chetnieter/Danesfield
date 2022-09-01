@@ -14,6 +14,7 @@ the nearest point in the point cloud.
 '''
 
 import argparse
+import json
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +25,9 @@ import sys
 from pathlib import Path
 from scipy.spatial import KDTree
 from time import time
+
+from danesfield.gpm import GPM
+from danesfield.gpm_decode64 import json_numpy_array_hook
 
 from kwiver.vital.types import Mesh
 from kwiver.vital.types.point import Point3d
@@ -90,7 +94,7 @@ class pointCloudTextureMapper(object):
     def __init__(self, points, data, output_dir):
 
         # Size of texture image
-        self.img_size = (500, 500, 3)
+        self.img_size = (500, 500, data.shape[1])
 
         self.points = points
 
@@ -195,10 +199,11 @@ class pointCloudTextureMapper(object):
 
 def main(args):
     parser = argparse.ArgumentParser(
-        description="Take point cloud data and add a texture map to a mesh that "
-                    " paints that data on the mesh.")
+        description="Texture map either point cloud data or GPM error data "
+                    "associated with the point cloud.")
     parser.add_argument("mesh_dir", help="path to directory holding the mesh files")
-    parser.add_argument("point_cloud_file", help="path to point cloud file")
+    parser.add_argument("point_cloud", help="path to point cloud file")
+    parser.add_argument("--gpm_json", help="JSON file with extracted GPM metadata")
     parser.add_argument("--output_dir", help="directory to save the results. "
                         "Defaults to mesh_dir. If left to be the mesh_dir then "
                         "the original mesh files will be overwritten.")
@@ -218,15 +223,23 @@ def main(args):
     else:
         output_dir = Path(args.mesh_dir)
 
-    pc_data = load_point_cloud(args.point_cloud_file)
+    pc_data = load_point_cloud(args.point_cloud)
     points = np.stack([pc_data['X'], pc_data['Y'], pc_data['Z']], axis=1)
 
-    # Currently just transfer point color to mesh
-    rgb_data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
-    rgb_data = rgb_data/np.max(rgb_data)
-    # rgb_data = rgb_data/2048.
+    if args.gpm_json:
+        with open(args.gpm_json) as mf:
+            gpm = GPM(json.load(mf, object_hook=json_numpy_array_hook))
 
-    texMapper = pointCloudTextureMapper(points, rgb_data, output_dir)
+        if 'PPE_LUT_Index' in pc_data.dtype.names:
+            gpm.setupPPELookup(points, pc_data['PPE_LUT_Index'])
+
+        data = gpm.get_per_point_error(points).diagonal(axis1=1, axis2=2)
+    else:
+        # Currently just transfer point color to mesh
+        data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
+        data = data/np.max(data)
+
+    texMapper = pointCloudTextureMapper(points, data, output_dir)
 
     for mf in mesh_files:
         texMapper.process_mesh(mf)
