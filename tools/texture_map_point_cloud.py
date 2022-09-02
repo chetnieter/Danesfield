@@ -14,12 +14,10 @@ the nearest point in the point cloud.
 '''
 
 import argparse
+import imageio
 import json
-import math
-import matplotlib.pyplot as plt
 import numpy as np
 import pdal
-import random
 import sys
 
 from pathlib import Path
@@ -30,10 +28,8 @@ from danesfield.gpm import GPM
 from danesfield.gpm_decode64 import json_numpy_array_hook
 
 from kwiver.vital.types import Mesh
-from kwiver.vital.types.point import Point3d
 from kwiver.vital.algo import UVUnwrapMesh
 from kwiver.arrows.core import mesh_triangulate
-from kwiver.arrows.core import mesh_closest_points
 
 from kwiver.vital.modules import load_known_modules
 
@@ -94,7 +90,7 @@ class pointCloudTextureMapper(object):
     def __init__(self, points, data, output_dir):
 
         # Size of texture image
-        self.img_size = (500, 500, data.shape[1])
+        self.img_size = (500, 500) + data.shape[1:]
 
         self.points = points
 
@@ -189,12 +185,19 @@ class pointCloudTextureMapper(object):
 
         new_name = self.output_dir / meshfile.stem
 
-        plt.imsave(new_name.with_suffix('.png'), img_arr)
+        if len(img_arr.shape) == 3:
+            imageio.imwrite(new_name.with_suffix('.png'), img_arr)
 
-        with open(new_name.with_suffix('.mtl'), 'w') as f:
-            f.write(mtl_template.format(new_name.with_suffix('.png').name))
+            with open(new_name.with_suffix('.mtl'), 'w') as f:
+                f.write(mtl_template.format(new_name.with_suffix('.png').name))
 
-        new_mesh.set_tex_source(new_name.with_suffix('.mtl').name)
+            new_mesh.set_tex_source(new_name.with_suffix('.mtl').name)
+        else:
+            for i in range(3):
+                for j in range(i+1):
+                    tiff_name = Path(str(new_name) + f'_{i}_{j}')
+                    imageio.imwrite(tiff_name.with_suffix('.tiff'), img_arr[:,:,i,j])
+
         Mesh.to_obj_file(str(new_name.with_suffix('.obj')), new_mesh)
 
 def main(args):
@@ -233,7 +236,8 @@ def main(args):
         if 'PPE_LUT_Index' in pc_data.dtype.names:
             gpm.setupPPELookup(points, pc_data['PPE_LUT_Index'])
 
-        data = gpm.get_per_point_error(points).diagonal(axis1=1, axis2=2)
+        print("Getting error")
+        data = gpm.get_per_point_error(points)
     else:
         # Currently just transfer point color to mesh
         data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
