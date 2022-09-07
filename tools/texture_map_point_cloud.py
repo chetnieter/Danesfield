@@ -179,7 +179,7 @@ class pointCloudTextureMapper(object):
         uv_unwrap_mesh.unwrap(new_mesh)
 
         # Create the texture image
-        img_arr = np.zeros(self.img_size, dtype=np.float64)
+        img_arr = np.zeros(self.img_size, dtype=np.float32)
 
         self.texture_sample(img_arr, new_mesh, self.utm_shift(meshfile))
 
