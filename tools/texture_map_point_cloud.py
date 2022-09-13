@@ -188,6 +188,7 @@ class pointCloudTextureMapper(object):
         # Get the utm shift
         utm_shift = self.utm_shift(meshfile)
 
+        print('Texturing sample')
         self.texture_sample(color_img, new_mesh, self.color_data, utm_shift)
         imageio.imwrite(new_name.with_suffix('.png'), color_img)
 
@@ -205,6 +206,7 @@ class pointCloudTextureMapper(object):
                     tiff_name = Path(str(new_name) + f'_{i}_{j}')
                     imageio.imwrite(tiff_name.with_suffix('.tiff'), err_img[:,:,i,j])
 
+        print('Writing out new mesh file')
         Mesh.to_obj_file(str(new_name.with_suffix('.obj')), new_mesh)
 
         # Append the UTM shift to the new mesh file
@@ -215,6 +217,8 @@ class pointCloudTextureMapper(object):
             content = f.read()
             f.seek(0, 0)
             f.write(utm_header + content)
+
+        print('Finished with mesh')
 
 def main(args):
     parser = argparse.ArgumentParser(
@@ -266,6 +270,8 @@ def main(args):
 
     for mf in mesh_files:
         texMapper.process_mesh(mf)
+
+    print('Finished')
 
 if __name__ == '__main__':
     main(sys.argv[1:])
