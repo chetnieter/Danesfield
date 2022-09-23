@@ -210,9 +210,9 @@ class pointCloudTextureMapper(object):
         Mesh.to_obj_file(str(new_name.with_suffix('.obj')), new_mesh)
 
         # Append the UTM shift to the new mesh file
-        utm_header = (f'#x {utm_shift[0]}\n'
-                      f'#y {utm_shift[1]}\n'
-                      f'#z {utm_shift[2]}\n')
+        utm_header = (f'#x offset: {utm_shift[0]}\n'
+                      f'#y offset: {utm_shift[1]}\n'
+                      f'#z offset: {utm_shift[2]}\n')
         with open(new_name.with_suffix('.obj'), 'r+') as f:
             content = f.read()
             f.seek(0, 0)
