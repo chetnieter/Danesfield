@@ -87,7 +87,7 @@ def tri_area(tri):
 
 # Class to support texture mapping point cloud data to meshes
 class pointCloudTextureMapper(object):
-    def __init__(self, points, output_dir, color_data, err_data=None):
+    def __init__(self, points, output_dir, color_data, err_data=None, use_dist=False):
 
         # Size of texture image
         self.img_size = (500, 500)
@@ -105,6 +105,9 @@ class pointCloudTextureMapper(object):
 
         # Location to save data
         self.output_dir = output_dir
+
+        # Use distance from point to pixel
+        self.use_dist = use_dist
 
     # Create a texture map image by finding the nearest point to a pixel and using
     # its value to set the color.
@@ -150,10 +153,10 @@ class pointCloudTextureMapper(object):
                         pixel_indices.append([int((1. - y)*img_size[1]),
                                               int(x*img_size[0])])
 
-            closest_indices = self.search_tree.query(pixel_points)
+            distances, closest_indices = self.search_tree.query(pixel_points)
 
-            for px, ci in zip(pixel_indices, closest_indices[1]):
-                img[px[0], px[1], :] = data[ci]
+            for px, ci, dist in zip(pixel_indices, closest_indices, distances):
+                img[px[0], px[1], :] = self.process_pixel(data[ci], dist)
 
     def utm_shift(self, meshfile):
     # Check for UTM corrections in mesh file header
@@ -172,6 +175,13 @@ class pointCloudTextureMapper(object):
                 shift[2] = float(cols[2])
 
         return shift
+
+    # Apply distance to pixel if requested
+    def process_pixel(self, px, dist):
+        if not self.use_dist:
+            return px
+        else:
+            return px*dist
 
     def process_mesh(self, meshfile):
         print('Processing mesh ', meshfile)
@@ -230,6 +240,10 @@ def main(args):
     parser.add_argument("--output_dir", help="directory to save the results. "
                         "Defaults to mesh_dir. If left to be the mesh_dir then "
                         "the original mesh files will be overwritten.")
+    parser.add_argument("--use_dist", help="adjust texture value by the distance "
+                        " to the sample point. Exact behavior depends on the data type",
+                        action='store_true')
+    parser.set_defaults(use_dist=False)
     args = parser.parse_args(args)
 
     # Load kwiver modules
@@ -249,9 +263,13 @@ def main(args):
     pc_data = load_point_cloud(args.point_cloud)
     points = np.stack([pc_data['X'], pc_data['Y'], pc_data['Z']], axis=1)
 
-    # Get color data from point cloud
-    color_data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
-    color_data = color_data/np.max(color_data)
+    # If no error data and use distance just write distance to pixel value
+    if args.use_dist:
+        color_data = np.ones([len(points)])
+    else:
+        # Get color data from point cloud
+        color_data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
+        color_data = color_data/np.max(color_data)
 
     # Get error data from gpm metadata if available
     if args.gpm_json:
@@ -262,11 +280,13 @@ def main(args):
             gpm.setupPPELookup(points, pc_data['PPE_LUT_Index'])
 
         print("Getting error")
-        err_data = gpm.get_per_point_error(points)
+        # err_data = gpm.get_per_point_error(points)
+        err_data = gpm.get_covar(points)
     else:
         err_data = None
 
-    texMapper = pointCloudTextureMapper(points, output_dir, color_data, err_data)
+    texMapper = pointCloudTextureMapper(points, output_dir, color_data, err_data,
+                                        args.use_dist)
 
     for mf in mesh_files:
         texMapper.process_mesh(mf)
