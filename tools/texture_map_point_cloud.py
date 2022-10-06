@@ -155,8 +155,11 @@ class pointCloudTextureMapper(object):
 
             distances, closest_indices = self.search_tree.query(pixel_points)
 
-            for px, ci, dist in zip(pixel_indices, closest_indices, distances):
-                img[px[0], px[1], :] = self.process_pixel(data[ci], dist)
+
+            for idx, (px, ci, dist) in enumerate(zip(pixel_indices, closest_indices, distances)):
+                dvec = np.array(self.points[ci] - pixel_points[idx])
+                covar_correction = np.outer(dvec, dvec)
+                img[px[0], px[1], :] = self.process_pixel(data[ci], dist, covar_correction)
 
     def utm_shift(self, meshfile):
     # Check for UTM corrections in mesh file header
@@ -177,11 +180,14 @@ class pointCloudTextureMapper(object):
         return shift
 
     # Apply distance to pixel if requested
-    def process_pixel(self, px, dist):
+    def process_pixel(self, px, dist, covar_corr):
         if not self.use_dist:
             return px
         else:
-            return px*dist
+            if (type(px) is np.ndarray) and (px.shape == covar_corr.shape):
+                return px + covar_corr
+            else:
+                return px*dist
 
     def process_mesh(self, meshfile):
         print('Processing mesh ', meshfile)
