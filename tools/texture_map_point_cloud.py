@@ -262,6 +262,10 @@ def main(args):
     parser.add_argument("--use_dist", help="adjust texture value by the distance "
                         " to the sample point. Exact behavior depends on the data type",
                         action='store_true')
+    parser.add_argument("--included_errors", help="comma separated booleans"
+                        " for the three error types: anchor point, ppe, and"
+                        " unmodeled. For example '1,0,1' would include the"
+                        " standard and unmodeled errors")
     parser.set_defaults(use_dist=False)
     args = parser.parse_args(args)
 
@@ -294,10 +298,21 @@ def main(args):
         if 'PPE_LUT_Index' in pc_data.dtype.names:
             gpm.setupPPELookup(points, pc_data['PPE_LUT_Index'])
 
+        # Determine which error to include
+        if args.included_errors:
+            inc_err = [(True if int(e) == 1 else False) for
+                       e in args.included_errors.split(',')]
+        else:
+            inc_err = [True, False, False]
+
         print("Getting error")
-        err_data = gpm.get_per_point_error(points)
-        err_data += gpm.get_covar(points)
-        err_data += gpm.get_unmodeled_error(points)
+        err_data = np.zeros( (len(points), 3, 3) )
+        if inc_err[0]:
+            err_data += gpm.get_covar(points)
+        if inc_err[1]:
+            err_data += gpm.get_per_point_error(points)
+        if inc_err[2]:
+            err_data += gpm.get_unmodeled_error(points)
     else:
         err_data = None
 
