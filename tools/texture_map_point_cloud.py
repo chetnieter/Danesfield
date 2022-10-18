@@ -157,9 +157,15 @@ class pointCloudTextureMapper(object):
 
 
             for idx, (px, ci, dist) in enumerate(zip(pixel_indices, closest_indices, distances)):
-                dvec = np.array(self.points[ci] - pixel_points[idx])
-                covar_correction = np.outer(dvec, dvec)
-                img[px[0], px[1], :] = self.process_pixel(data[ci], dist, covar_correction)
+                if self.use_dist:
+                    dvec = np.array(self.points[ci] - pixel_points[idx])
+                    covar_correction = np.outer(dvec, dvec)
+                else:
+                    covar_correction = np.zeros(data[ci].shape)
+                if data is not None:
+                    img[px[0], px[1], :] = self.process_pixel(data[ci], dist, covar_correction)
+                else:
+                    img[px[0], px[1]] = self.process_pixel(None, dist, covar_correction)
 
     def utm_shift(self, meshfile):
     # Check for UTM corrections in mesh file header
@@ -181,13 +187,13 @@ class pointCloudTextureMapper(object):
 
     # Apply distance to pixel if requested
     def process_pixel(self, px, dist, covar_corr):
-        if not self.use_dist:
-            return px
+        if px is None:
+            return dist
         else:
             if (type(px) is np.ndarray) and (px.shape == covar_corr.shape):
                 return px + covar_corr
             else:
-                return px*dist
+                return px
 
     def process_mesh(self, meshfile):
         print('Processing mesh ', meshfile)
@@ -221,6 +227,13 @@ class pointCloudTextureMapper(object):
                 for j in range(i+1):
                     tiff_name = Path(str(new_name) + f'_{i}_{j}')
                     imageio.imwrite(tiff_name.with_suffix('.tiff'), err_img[:,:,i,j])
+
+        if self.use_dist:
+            dist_img = np.zeros(self.img_size, dtype=np.float32)
+            dist_img[:] = np.nan
+            self.texture_sample(dist_img, new_mesh, None, utm_shift)
+            dist_img_name = Path(str(new_name) + '_dist')
+            imageio.imwrite(dist_img_name.with_suffix('.tiff'), dist_img)
 
         print('Writing out new mesh file')
         Mesh.to_obj_file(str(new_name.with_suffix('.obj')), new_mesh)
@@ -269,13 +282,9 @@ def main(args):
     pc_data = load_point_cloud(args.point_cloud)
     points = np.stack([pc_data['X'], pc_data['Y'], pc_data['Z']], axis=1)
 
-    # If no error data and use distance just write distance to pixel value
-    if args.use_dist:
-        color_data = np.ones([len(points)])
-    else:
-        # Get color data from point cloud
-        color_data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
-        color_data = color_data/np.max(color_data)
+    # Get color data from point cloud
+    color_data = np.stack([pc_data['Red'], pc_data['Green'], pc_data['Blue']], axis=1)
+    color_data = color_data/np.max(color_data)
 
     # Get error data from gpm metadata if available
     if args.gpm_json:
@@ -286,13 +295,13 @@ def main(args):
             gpm.setupPPELookup(points, pc_data['PPE_LUT_Index'])
 
         print("Getting error")
-        # err_data = gpm.get_per_point_error(points)
-        err_data = gpm.get_covar(points)
+        err_data = gpm.get_per_point_error(points)
+        err_data += gpm.get_covar(points)
+        err_data += gpm.get_unmodeled_error(points)
     else:
         err_data = None
 
-    texMapper = pointCloudTextureMapper(points, output_dir, color_data, err_data,
-                                        args.use_dist)
+    texMapper = pointCloudTextureMapper(points, output_dir, color_data, err_data, args.use_dist)
 
     for mf in mesh_files:
         texMapper.process_mesh(mf)
