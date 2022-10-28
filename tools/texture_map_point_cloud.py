@@ -160,8 +160,10 @@ class pointCloudTextureMapper(object):
                 if self.use_dist:
                     dvec = np.array(self.points[ci] - pixel_points[idx])
                     covar_correction = np.outer(dvec, dvec)
-                else:
+                elif (data is not None):
                     covar_correction = np.zeros(data[ci].shape)
+                else:
+                    covar_correction = 0.0
                 if data is not None:
                     img[px[0], px[1], :] = self.process_pixel(data[ci], dist, covar_correction)
                 else:
@@ -228,12 +230,11 @@ class pointCloudTextureMapper(object):
                     tiff_name = Path(str(new_name) + f'_{i}_{j}')
                     imageio.imwrite(tiff_name.with_suffix('.tiff'), err_img[:,:,i,j])
 
-        if self.use_dist:
-            dist_img = np.zeros(self.img_size, dtype=np.float32)
-            dist_img[:] = np.nan
-            self.texture_sample(dist_img, new_mesh, None, utm_shift)
-            dist_img_name = Path(str(new_name) + '_dist')
-            imageio.imwrite(dist_img_name.with_suffix('.tiff'), dist_img)
+        dist_img = np.zeros(self.img_size, dtype=np.float32)
+        dist_img[:] = np.nan
+        self.texture_sample(dist_img, new_mesh, None, utm_shift)
+        dist_img_name = Path(str(new_name) + '_dist')
+        imageio.imwrite(dist_img_name.with_suffix('.tiff'), dist_img)
 
         print('Writing out new mesh file')
         Mesh.to_obj_file(str(new_name.with_suffix('.obj')), new_mesh)
@@ -261,12 +262,11 @@ def main(args):
                         "the original mesh files will be overwritten.")
     parser.add_argument("--use_dist", help="adjust texture value by the distance "
                         " to the sample point. Exact behavior depends on the data type",
-                        action='store_true')
+                        action='store_true', default=False)
     parser.add_argument("--included_errors", help="comma separated booleans"
                         " for the three error types: anchor point, ppe, and"
                         " unmodeled. For example '1,0,1' would include the"
-                        " standard and unmodeled errors")
-    parser.set_defaults(use_dist=False)
+                        " standard and unmodeled errors", default="1,1,1")
     args = parser.parse_args(args)
 
     # Load kwiver modules
@@ -303,7 +303,7 @@ def main(args):
             inc_err = [(True if int(e) == 1 else False) for
                        e in args.included_errors.split(',')]
         else:
-            inc_err = [True, False, False]
+            inc_err = [True, True, True]
 
         print("Getting error")
         err_data = np.zeros( (len(points), 3, 3) )
