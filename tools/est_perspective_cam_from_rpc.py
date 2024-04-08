@@ -52,7 +52,7 @@ def compute_dlt(image_pts, world_pts):
 
     # Solve for x using SVD
     U, S, Vt = np.linalg.svd(A)
-    tol = 1e-3
+    tol = 1e-6
     r = np.sum(S > tol)
     U = U[:, :r]
     S = S[:r]
@@ -68,9 +68,9 @@ def compute_dlt(image_pts, world_pts):
             if row * 4 + col < 11:
                 proj[row, col] = x[row * 4 + col]
 
-    print(proj)
+    proj[2, 3] = 1.0
 
-    return cam
+    return proj
 
 data_dir = Path('/home/local/KHQ/chet.nieter/data/BIG-R-T10/data/ElSegundo')
 mesh_file = data_dir / 'elsegundo.ply'
@@ -85,19 +85,32 @@ with open(rpc_file, 'r') as f:
     rpc_model = raytheon_rpc.parse_raytheon_rpc_file(f)
 
 vertices = plydata['vertex']
-world_pts = np.stack([vertices.data['x'],
-                     vertices.data['y'],
-                     vertices.data['z']], axis=1) + offset
+utm_pts = np.stack([vertices.data['x'],
+                      vertices.data['y'],
+                      vertices.data['z']], axis=1) + offset
 
 inProj = pyproj.Proj(proj='utm', zone=11, ellps='WGS84')
 outProj = pyproj.Proj(proj='longlat', datum='WGS84')
 
-lon, lat, hae = pyproj.transform(inProj, outProj, world_pts[:,0], world_pts[:,1], world_pts[:,2])
-wgs_coords = np.stack([lon, lat, hae], axis=1)
+lon, lat, hae = pyproj.transform(inProj, outProj, utm_pts[:,0], utm_pts[:,1], utm_pts[:,2])
+wgs_pts = np.stack([lon, lat, hae], axis=1)
 
-img_pts = rpc_model.project(wgs_coords)
+img_pts = rpc_model.project(wgs_pts)
 
-num_points = 100
-cam = compute_dlt(img_pts[:num_points,:], wgs_coords[:num_points,:])
+skip = 10
+cam = compute_dlt(img_pts[::skip,:], wgs_pts[::skip,:])
+
+world_homo_pts = np.stack([wgs_pts[:, 0],
+                           wgs_pts[:, 1],
+                           wgs_pts[:, 2],
+                           np.ones(wgs_pts.shape[0] )], axis=1)
+
+img_homo_pts = (cam@world_homo_pts.T).T
+
+new_img_pts = img_homo_pts[:,0:2]/img_homo_pts[:,2][:, np.newaxis]
+
+#print(img_homo_pts[:10,:])
+print(new_img_pts[:20,:] - img_pts[:20,:])
+#print(img_pts[:20,:])
 
 print(cam)
