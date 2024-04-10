@@ -9,13 +9,12 @@
 
 # Projects mesh data to images via a RPC camera
 
-import gdal
+import argparse
 import numpy as np
 import pyproj
 from plyfile import PlyData, PlyElement
-from danesfield import gdal_utils, raytheon_rpc
+from danesfield import raytheon_rpc
 from pathlib import Path
-from skimage.io import imsave
 
 # Function to estimate camera from set of image and 3d points. Based on VXL
 # implementation
@@ -72,22 +71,24 @@ def compute_dlt(image_pts, world_pts):
 
     return proj
 
-data_dir = Path('/home/local/KHQ/chet.nieter/data/BIG-R-T10/data/ElSegundo')
-mesh_file = data_dir / 'elsegundo.ply'
-rpc_file = data_dir / 'chip_01.img.rpc'
+parser = argparse.ArgumentParser()
+parser.add_argument('mesh_file', type=str, help='mesh file in ply format')
+parser.add_argument('rpc_file', type=str, help='rpc camera in Raytheon format')
+args = parser.parse_args()
 
 offset = np.array([370332.4999829354, 3752535.9532070896, -19.399948061443865])
 
-with open(mesh_file, 'rb') as f:
+with open(args.mesh_file, 'rb') as f:
     plydata = PlyData.read(f)
 
-with open(rpc_file, 'r') as f:
+with open(args.rpc_file, 'r') as f:
     rpc_model = raytheon_rpc.parse_raytheon_rpc_file(f)
 
 vertices = plydata['vertex']
-utm_pts = np.stack([vertices.data['x'],
-                      vertices.data['y'],
-                      vertices.data['z']], axis=1) + offset
+vert_pts = np.stack([vertices.data['x'],
+                     vertices.data['y'],
+                     vertices.data['z']], axis=1)
+utm_pts = vert_pts + offset
 
 inProj = pyproj.Proj(proj='utm', zone=11, ellps='WGS84')
 outProj = pyproj.Proj(proj='longlat', datum='WGS84')
@@ -98,19 +99,18 @@ wgs_pts = np.stack([lon, lat, hae], axis=1)
 img_pts = rpc_model.project(wgs_pts)
 
 skip = 10
-cam = compute_dlt(img_pts[::skip,:], wgs_pts[::skip,:])
+cam = compute_dlt(img_pts[::skip,:], vert_pts[::skip,:])
 
-world_homo_pts = np.stack([wgs_pts[:, 0],
-                           wgs_pts[:, 1],
-                           wgs_pts[:, 2],
-                           np.ones(wgs_pts.shape[0] )], axis=1)
+world_homo_pts = np.stack([vert_pts[:, 0],
+                           vert_pts[:, 1],
+                           vert_pts[:, 2],
+                           np.ones(vert_pts.shape[0] )], axis=1)
 
 img_homo_pts = (cam@world_homo_pts.T).T
-
 new_img_pts = img_homo_pts[:,0:2]/img_homo_pts[:,2][:, np.newaxis]
 
-#print(img_homo_pts[:10,:])
-print(new_img_pts[:20,:] - img_pts[:20,:])
-#print(img_pts[:20,:])
+rmse = np.sqrt(((new_img_pts - img_pts) ** 2).mean())
+
+print('RMSE: ', rmse)
 
 print(cam)
